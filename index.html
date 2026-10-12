@@ -1,0 +1,589 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Monthly Schedule</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #f5f7fa;
+      color: #1a1a1a;
+      min-height: 100vh;
+    }
+    .container { width: 100%; max-width: 1000px; margin: 0 auto; padding: 20px; }
+    #pin-screen {
+      background: white; padding: 48px 32px; border-radius: 12px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.08); text-align: center;
+      max-width: 380px; margin: 80px auto;
+    }
+    #pin-screen h1 { font-size: 1.6rem; margin-bottom: 8px; }
+    #pin-screen p { color: #666; margin-bottom: 24px; }
+    #pin-input {
+      width: 100%; padding: 14px; font-size: 1.1rem; border: 1.5px solid #ddd;
+      border-radius: 8px; text-align: center; letter-spacing: 4px; margin-bottom: 16px;
+    }
+    button, .btn {
+      background: #2563eb; color: white; border: none; padding: 10px 18px;
+      font-size: 0.95rem; border-radius: 8px; cursor: pointer; font-weight: 500;
+    }
+    button:hover, .btn:hover { background: #1d4ed8; }
+    .btn-secondary { background: white; color: #1a1a1a; border: 1.5px solid #ddd; }
+    .btn-secondary:hover { background: #f3f4f6; }
+    .error { color: #dc2626; margin-top: 12px; min-height: 1.2em; }
+    #calendar-screen { display: none; }
+    .top-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 12px; }
+    .month-nav { display: flex; align-items: center; gap: 12px; }
+    .month-label { font-size: 1.4rem; font-weight: 600; min-width: 200px; text-align: center; }
+    .calendar { background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 2px 12px rgba(0,0,0,0.06); }
+    .weekdays { display: grid; grid-template-columns: repeat(7, 1fr); background: #f8fafc; border-bottom: 1px solid #e5e7eb; }
+    .weekday { text-align: center; padding: 12px 4px; font-size: 0.75rem; font-weight: 600; color: #64748b; text-transform: uppercase; }
+    .days { display: grid; grid-template-columns: repeat(7, 1fr); }
+    .day { min-height: 120px; border-right: 1px solid #f1f5f9; border-bottom: 1px solid #f1f5f9; padding: 6px; cursor: pointer; }
+    .day:nth-child(7n) { border-right: none; }
+    .day.empty { background: #fafbfc; cursor: default; }
+    .day:hover:not(.empty) { background: #f8fafc; }
+    .day-number { font-size: 0.8rem; font-weight: 500; color: #64748b; margin-bottom: 4px; }
+    .day.today .day-number { background: #2563eb; color: white; width: 22px; height: 22px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-weight: 600; }
+    .events { font-size: 0.7rem; line-height: 1.25; }
+    .event { background: #eff6ff; color: #1e40af; padding: 2px 5px; border-radius: 3px; margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .event.call { background: #fef2f2; color: #b91c1c; }
+    .event.or { background: #f0fdf4; color: #166534; }
+    .event.off { background: #f1f5f9; color: #475569; }
+    .event.clinic { background: #fefce8; color: #a16207; }
+    .modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4); align-items: center; justify-content: center; z-index: 100; }
+    .modal.open { display: flex; }
+    .modal-content { background: white; padding: 24px; border-radius: 12px; width: 90%; max-width: 420px; }
+    .modal-content h3 { margin-bottom: 16px; }
+    .modal-content input, .modal-content select { width: 100%; padding: 10px; border: 1.5px solid #ddd; border-radius: 6px; margin-bottom: 12px; }
+    .modal-actions { display: flex; gap: 8px; justify-content: flex-end; }
+    .event-item { display: flex; justify-content: space-between; align-items: center; background: #f8fafc; padding: 6px 8px; border-radius: 4px; margin-bottom: 4px; font-size: 0.85rem; }
+    .logout { position: fixed; top: 12px; right: 12px; }
+    @media (max-width: 640px) { .day { min-height: 80px; } .events { font-size: 0.6rem; } }
+    /* Dark mode */
+    :root { color-scheme: dark; }
+    body { background: #0f1115; color: #e5e7eb; }
+    #pin-screen, .calendar, .modal-content { background: #1a1d24; box-shadow: 0 4px 20px rgba(0,0,0,0.5); }
+    #pin-screen p { color: #9ca3af; }
+    #pin-input, .modal-content input, .modal-content select { background: #0f1115; color: #e5e7eb; border-color: #374151; }
+    .btn-secondary { background: #1a1d24; color: #e5e7eb; border-color: #374151; }
+    .btn-secondary:hover { background: #262a33; }
+    .error { color: #f87171; }
+    .weekdays { background: #14171d; border-bottom-color: #2a2f3a; }
+    .weekday, .day-number { color: #9ca3af; }
+    .day { border-color: #232733; }
+    .day.empty { background: #13151a; }
+    .day:hover:not(.empty) { background: #222631; }
+    .event { background: #1e2a4a; color: #93c5fd; }
+    .event.call { background: #3b1717; color: #fca5a5; }
+    .event.or { background: #14301f; color: #86efac; }
+    .event.off { background: #262a33; color: #cbd5e1; }
+    .event.clinic { background: #3a2f0b; color: #fde047; }
+    .modal { background: rgba(0,0,0,0.65); }
+    .event-item { background: #222631; }
+    /* Grid fix: keep 7 equal columns */
+    .weekdays, .days { grid-template-columns: repeat(7, minmax(0, 1fr)); }
+    .day, .weekday { min-width: 0; overflow: hidden; }
+    .calendar { width: 100%; }
+    .event { white-space: normal; overflow-wrap: anywhere; }
+  </style>
+</head>
+<body>
+  <button class="btn btn-secondary logout" id="logout-btn" style="display:none;" onclick="logout()">Log out</button>
+  <div class="container">
+    <div id="pin-screen">
+      <h1>Schedule</h1>
+      <p>Enter PIN to view</p>
+      <input type="password" id="pin-input" placeholder="••••" maxlength="8" autocomplete="off">
+      <button onclick="checkPin()">Enter</button>
+      <div class="error" id="pin-error"></div>
+    </div>
+    <div id="calendar-screen">
+      <div class="top-bar">
+        <div class="month-nav">
+          <button class="btn btn-secondary" onclick="changeMonth(-1)">←</button>
+          <div class="month-label" id="month-label"></div>
+          <button class="btn btn-secondary" onclick="changeMonth(1)">→</button>
+        </div>
+        <div>
+          <button class="btn" onclick="downloadUpdated()">Download Updated Page</button>
+        </div>
+      </div>
+      <div class="calendar">
+        <div class="weekdays">
+          <div class="weekday">Sun</div><div class="weekday">Mon</div><div class="weekday">Tue</div>
+          <div class="weekday">Wed</div><div class="weekday">Thu</div><div class="weekday">Fri</div><div class="weekday">Sat</div>
+        </div>
+        <div class="days" id="days"></div>
+      </div>
+      <p style="text-align:center; color:#888; margin-top:12px; font-size:0.8rem;">Click a day to edit. Download & re-upload to update the shared page.</p>
+    </div>
+  </div>
+  <div class="modal" id="edit-modal">
+    <div class="modal-content">
+      <h3 id="modal-date">Edit</h3>
+      <div id="event-list"></div>
+      <input type="text" id="new-title" placeholder="Event title">
+      <select id="new-type">
+        <option value="">Default</option>
+        <option value="or">OR / Day (green)</option>
+        <option value="call">Call / Night (red)</option>
+        <option value="clinic">Clinic (yellow)</option>
+        <option value="off">Off / Vacation (gray)</option>
+      </select>
+      <div class="modal-actions">
+        <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+        <button class="btn" onclick="addEvent()">Add</button>
+      </div>
+    </div>
+  </div>
+  <script>
+    const PIN = "0825";
+    let schedule = {
+      "2027-12-17": [{title:"Daycare 0900-1300",type:""}],
+      "2027-12-15": [{title:"Daycare 0900-1300",type:""}],
+      "2027-12-10": [{title:"Daycare 0900-1300",type:""}],
+      "2027-12-08": [{title:"Daycare 0900-1300",type:""}],
+      "2027-12-03": [{title:"Daycare 0900-1300",type:""}],
+      "2027-12-01": [{title:"Daycare 0900-1300",type:""}],
+      "2027-11-26": [{title:"Daycare 0900-1300",type:""}],
+      "2027-11-24": [{title:"Daycare 0900-1300",type:""}],
+      "2027-11-19": [{title:"Daycare 0900-1300",type:""}],
+      "2027-11-17": [{title:"Daycare 0900-1300",type:""}],
+      "2027-11-12": [{title:"Daycare 0900-1300",type:""}],
+      "2027-11-10": [{title:"Daycare 0900-1300",type:""}],
+      "2027-11-05": [{title:"Daycare 0900-1300",type:""}],
+      "2027-11-03": [{title:"Daycare 0900-1300",type:""}],
+      "2027-10-29": [{title:"Daycare 0900-1300",type:""}],
+      "2027-10-27": [{title:"Daycare 0900-1300",type:""}],
+      "2027-10-22": [{title:"Daycare 0900-1300",type:""}],
+      "2027-10-20": [{title:"Daycare 0900-1300",type:""}],
+      "2027-10-15": [{title:"Daycare 0900-1300",type:""}],
+      "2027-10-13": [{title:"Daycare 0900-1300",type:""}],
+      "2027-10-08": [{title:"Daycare 0900-1300",type:""}],
+      "2027-10-06": [{title:"Daycare 0900-1300",type:""}],
+      "2027-10-01": [{title:"Daycare 0900-1300",type:""}],
+      "2027-09-29": [{title:"Daycare 0900-1300",type:""}],
+      "2027-09-24": [{title:"Daycare 0900-1300",type:""}],
+      "2027-09-22": [{title:"Daycare 0900-1300",type:""}],
+      "2027-09-17": [{title:"Daycare 0900-1300",type:""}],
+      "2027-09-15": [{title:"Daycare 0900-1300",type:""}],
+      "2027-09-10": [{title:"Daycare 0900-1300",type:""}],
+      "2027-09-08": [{title:"Daycare 0900-1300",type:""}],
+      "2027-09-03": [{title:"Daycare 0900-1300",type:""}],
+      "2027-09-01": [{title:"Daycare 0900-1300",type:""}],
+      "2027-08-27": [{title:"Daycare 0900-1300",type:""}],
+      "2027-08-20": [{title:"Daycare 0900-1300",type:""}],
+      "2027-08-18": [{title:"Daycare 0900-1300",type:""}],
+      "2027-08-13": [{title:"Daycare 0900-1300",type:""}],
+      "2027-08-11": [{title:"Daycare 0900-1300",type:""}],
+      "2027-08-06": [{title:"Daycare 0900-1300",type:""}],
+      "2027-08-04": [{title:"Daycare 0900-1300",type:""}],
+      "2027-07-30": [{title:"Daycare 0900-1300",type:""}],
+      "2027-07-28": [{title:"Daycare 0900-1300",type:""}],
+      "2027-07-23": [{title:"Daycare 0900-1300",type:""}],
+      "2027-07-21": [{title:"Daycare 0900-1300",type:""}],
+      "2027-07-16": [{title:"Daycare 0900-1300",type:""}],
+      "2027-07-14": [{title:"Daycare 0900-1300",type:""}],
+      "2027-07-09": [{title:"Daycare 0900-1300",type:""}],
+      "2027-07-07": [{title:"Daycare 0900-1300",type:""}],
+      "2027-07-02": [{title:"Daycare 0900-1300",type:""}],
+      "2026-12-06": [{title:"LRH Call · Davis",type:"call"}],
+      "2026-12-13": [{title:"LRH Call · Davis",type:"call"}],
+      "2026-11-28": [{title:"LRH Call · Koch",type:"call"}],
+      "2026-11-22": [{title:"LRH Call · Molina",type:"call"}],
+      "2026-11-21": [{title:"LRH Call · Molina",type:"call"}],
+      "2026-11-07": [{title:"LRH Call · Burgueno-Vega",type:"call"}],
+      "2027-08-25": [{title:"Fin's Birthday",type:""},{title:"Daycare 0900-1300",type:""}],
+      "2026-03-27": [{title:"Felicia's Birthday",type:""}],
+      "2026-08-25": [{title:"Fin's Birthday",type:""}],
+      "2026-01-05": [{title:"Conference 0700-1100",type:"clinic"}],
+      "2026-01-12": [{title:"Conference 0700-1100",type:"clinic"}],
+      "2026-01-26": [{title:"Conference 0700-1100",type:"clinic"}],
+      "2026-02-02": [{title:"Conference 0700-1100",type:"clinic"},{title:"ABSITE",type:""},{title:"SO 6-18",type:"or"}],
+      "2026-02-08": [{title:"DAY OFF",type:"off"}],
+      "2026-02-09": [{title:"Conference 0700-1100",type:"clinic"},{title:"Mom’s Birthday",type:""}],
+      "2026-02-14": [{title:"Kolten’s Birthday",type:""},{title:"PJ’s Wedding",type:""}],
+      "2026-02-23": [{title:"Conference 0700-1100",type:"clinic"}],
+      "2026-03-02": [{title:"Conference 0700-1100",type:"clinic"}],
+      "2026-03-09": [{title:"Conference 0700-1100",type:"clinic"}],
+      "2026-03-12": [{title:"PAY DAY",type:""},{title:"Anniversary!",type:""}],
+      "2026-03-16": [{title:"Conference 0700-1100",type:"clinic"}],
+      "2026-03-23": [{title:"Conference 0700-1100",type:"clinic"}],
+      "2026-03-29": [{title:"VACATION",type:"off"}],
+      "2026-03-30": [{title:"Conference 0700-1100",type:"clinic"}],
+      "2026-04-03": [{title:"Good Friday",type:""},{title:"VACATION",type:"off"}],
+      "2026-04-05": [{title:"Easter Sunday",type:""}],
+      "2026-04-06": [{title:"Conference 0700-1100",type:"clinic"}],
+      "2026-04-13": [{title:"Conference 0700-1100",type:"clinic"}],
+      "2026-04-20": [{title:"Conference 0700-1100",type:"clinic"}],
+      "2026-04-27": [{title:"Conference 0700-1100",type:"clinic"}],
+      "2026-05-04": [{title:"Conference 0700-1100",type:"clinic"}],
+      "2026-05-11": [{title:"Conference 0700-1100",type:"clinic"}],
+      "2026-05-18": [{title:"Conference 0700-1100",type:"clinic"}],
+      "2026-05-25": [{title:"Memorial Day",type:""}],
+      "2026-06-01": [{title:"Conference 0700-1100",type:"clinic"}],
+      "2026-06-08": [{title:"Conference 0700-1100",type:"clinic"}],
+      "2026-06-15": [{title:"Conference 0700-1100",type:"clinic"}],
+      "2026-06-22": [{title:"Conference 0700-1100",type:"clinic"}],
+      "2026-06-29": [{title:"Conference 0700-1100",type:"clinic"}],
+      "2026-06-30": [{title:"31st Birthday",type:""},{title:"DAY OFF",type:"off"}],
+      "2026-07-01": [{title:"PGY2 @ 0600",type:""},{title:"Surg Onc",type:"or"}],
+      "2026-07-04": [{title:"Independence Day",type:""}],
+      "2026-07-06": [{title:"Conference 0700-1100",type:"clinic"}],
+      "2026-07-13": [{title:"Conference 0700-1100",type:"clinic"}],
+      "2026-07-20": [{title:"Conference 0700-1100",type:"clinic"}],
+      "2026-07-26": [{title:"VACATION",type:"off"}],
+      "2026-07-27": [{title:"Conference 0700-1100",type:"clinic"}],
+      "2026-08-02": [{title:"Ped Surg",type:"or"}],
+      "2026-08-03": [{title:"Conference 0700-1100",type:"clinic"}],
+      "2026-08-10": [{title:"Conference 0700-1100",type:"clinic"}],
+      "2026-08-17": [{title:"Conference 0700-1100",type:"clinic"}],
+      "2026-08-24": [{title:"Conference 0700-1100",type:"clinic"}],
+      "2026-08-31": [{title:"Conference 0700-1100",type:"clinic"}],
+      "2026-09-07": [{title:"Labor Day",type:""},{title:"Gen Surg",type:"or"}],
+      "2026-09-14": [{title:"Conference 0700-1100",type:"clinic"}],
+      "2026-09-21": [{title:"Conference 0700-1100",type:"clinic"}],
+      "2026-09-28": [{title:"Conference 0700-1100",type:"clinic"}],
+      "2026-10-01": [{title:"Gen Surg",type:"or"}],
+      "2026-10-02": [{title:"Gen Surg",type:"or"}],
+      "2026-10-03": [{title:"Gen Surg",type:"or"},{title:"B Vega",type:""}],
+      "2026-10-04": [{title:"ICU 1900-0700 · Forestiere",type:"call"}],
+      "2026-10-05": [{title:"Conference 0700-1100",type:"clinic"},{title:"Transition Day",type:""},{title:"ICU 2000-0700 · McCormick",type:"call"}],
+      "2026-10-06": [{title:"ICU 1900-0700 · Weston",type:"call"}],
+      "2026-10-07": [{title:"ICU 1900-0700 · Rowe",type:"call"}],
+      "2026-10-08": [{title:"PAY DAY",type:""},{title:"ICU 1900-0700 · Ringersen",type:"call"}],
+      "2026-10-09": [{title:"ICU 1900-0700 · Sobowale",type:"call"}],
+      "2026-10-11": [{title:"Felicia Naples",type:""},{title:"ICU 1900-0700 · Seoane",type:"call"}],
+      "2026-10-12": [{title:"Felicia Naples",type:""},{title:"ICU 2000-0700 · Taylor · APP Stephanie",type:"call"},{title:"Columbus Day",type:""}],
+      "2026-10-13": [{title:"Felicia Naples",type:""},{title:"ICU 1900-0700 · Sontchi · APP Stephanie",type:"call"},{title:"AAST Due",type:""}],
+      "2026-10-14": [{title:"Felicia Naples",type:""},{title:"ICU 1900-0700 · Wall · APP Stephanie",type:"call"}],
+      "2026-10-15": [{title:"ICU 1900-0700 · Rowe · APP Stephanie",type:"call"}],
+      "2026-10-16": [{title:"ICU 1900-0700 · Forestiere · APP Stephanie",type:"call"}],
+      "2026-10-18": [{title:"ICU 1900-0700 · Steinke · APP Stephanie",type:"call"}],
+      "2026-10-19": [{title:"Conference 0700-1100",type:"clinic"},{title:"ICU 2000-0700 · Forestiere · APP Karen",type:"call"},{title:"Daycare 0900-1300",type:""}],
+      "2026-10-20": [{title:"ICU 1900-0700 · Seoane · APP Karen",type:"call"}],
+      "2026-10-21": [{title:"ICU 1900-0700 · Rowe · APP Karen",type:"call"},{title:"Daycare 0900-1300",type:""}],
+      "2026-10-22": [{title:"PAY DAY",type:""},{title:"ICU 1900-0700 · Wall · APP Karen",type:"call"}],
+      "2026-10-23": [{title:"ICU 1900-0700 · Sontchi · APP Karen",type:"call"},{title:"Daycare 0900-1300",type:""}],
+      "2026-10-25": [{title:"ICU 1900-0700 · Sobowale · APP Karen",type:"call"}],
+      "2026-10-26": [{title:"Conference 0700-1100",type:"clinic"},{title:"ICU 2000-0700 · Ringersen · APP Stephanie",type:"call"},{title:"Daycare 0900-1300",type:""}],
+      "2026-10-27": [{title:"ICU 1900-0700 · McCormick · APP Stephanie",type:"call"}],
+      "2026-10-28": [{title:"ICU 1900-0700 · Gaugler · APP Stephanie",type:"call"},{title:"Daycare 0900-1300",type:""}],
+      "2026-10-29": [{title:"ICU 1900-0700 · Taylor · APP Stephanie",type:"call"}],
+      "2026-10-30": [{title:"ICU 1900-0700 · Weston · APP Stephanie",type:"call"},{title:"Daycare 0900-1300",type:""}],
+      "2026-11-02": [{title:"Conference 0700-1100",type:"clinic"},{title:"Transition Day",type:""},{title:"Breast",type:"or"},{title:"Daycare 0900-1300",type:""}],
+      "2026-11-03": [{title:"Breast",type:"or"}],
+      "2026-11-04": [{title:"Breast",type:"or"},{title:"Daycare 0900-1300",type:""}],
+      "2026-11-05": [{title:"PAY DAY",type:""},{title:"Breast",type:"or"}],
+      "2026-11-06": [{title:"Breast",type:"or"},{title:"Daycare 0900-1300",type:""}],
+      "2026-11-09": [{title:"Conference 0700-1100",type:"clinic"},{title:"Breast",type:"or"},{title:"Daycare 0900-1300",type:""}],
+      "2026-11-10": [{title:"Breast",type:"or"}],
+      "2026-11-11": [{title:"Breast",type:"or"},{title:"Veterans Day",type:""}],
+      "2026-11-12": [{title:"Breast",type:"or"}],
+      "2026-11-13": [{title:"Breast",type:"or"},{title:"Daycare 0900-1300",type:""}],
+      "2026-11-16": [{title:"Conference 0700-1100",type:"clinic"},{title:"Breast",type:"or"},{title:"Daycare 0900-1300",type:""}],
+      "2026-11-17": [{title:"Breast",type:"or"}],
+      "2026-11-18": [{title:"Breast",type:"or"},{title:"Daycare 0900-1300",type:""}],
+      "2026-11-19": [{title:"PAY DAY",type:""},{title:"Breast",type:"or"}],
+      "2026-11-20": [{title:"Breast",type:"or"},{title:"Daycare 0900-1300",type:""}],
+      "2026-11-23": [{title:"Conference 0700-1100",type:"clinic"},{title:"Breast",type:"or"},{title:"Daycare 0900-1300",type:""}],
+      "2026-11-24": [{title:"Breast",type:"or"}],
+      "2026-11-25": [{title:"Breast",type:"or"},{title:"Daycare 0900-1300",type:""}],
+      "2026-11-26": [{title:"Breast",type:"or"},{title:"Thanksgiving",type:""}],
+      "2026-11-27": [{title:"Breast",type:"or"},{title:"Daycare 0900-1300",type:""}],
+      "2026-11-30": [{title:"Conference 0700-1100",type:"clinic"},{title:"Transition Day",type:""},{title:"Breast",type:"or"},{title:"Daycare 0900-1300",type:""}],
+      "2026-12-01": [{title:"Transition Day",type:""},{title:"Breast",type:"or"}],
+      "2026-12-02": [{title:"Breast",type:"or"},{title:"Daycare 0900-1300",type:""}],
+      "2026-12-03": [{title:"Breast",type:"or"}],
+      "2026-12-04": [{title:"PAY DAY",type:""},{title:"Breast",type:"or"},{title:"Daycare 0900-1300",type:""}],
+      "2026-12-05": [{title:"LRH Call · Davis",type:"call"},{title:"Breast",type:"or"}],
+      "2026-12-07": [{title:"Conference 0700-1100",type:"clinic"},{title:"Breast",type:"or"},{title:"Daycare 0900-1300",type:""}],
+      "2026-12-08": [{title:"Breast",type:"or"}],
+      "2026-12-09": [{title:"Breast",type:"or"},{title:"Daycare 0900-1300",type:""}],
+      "2026-12-10": [{title:"Breast",type:"or"}],
+      "2026-12-11": [{title:"Breast",type:"or"},{title:"Daycare 0900-1300",type:""}],
+      "2026-12-14": [{title:"Conference 0700-1100",type:"clinic"},{title:"Breast",type:"or"},{title:"Daycare 0900-1300",type:""}],
+      "2026-12-15": [{title:"Breast",type:"or"}],
+      "2026-12-16": [{title:"Breast",type:"or"},{title:"Daycare 0900-1300",type:""}],
+      "2026-12-17": [{title:"PAY DAY",type:""},{title:"Breast",type:"or"}],
+      "2026-12-18": [{title:"Breast",type:"or"}],
+      "2026-12-20": [{title:"VACATION",type:"off"}],
+      "2026-12-21": [{title:"VACATION",type:"off"}],
+      "2026-12-22": [{title:"VACATION",type:"off"}],
+      "2026-12-23": [{title:"VACATION",type:"off"}],
+      "2026-12-24": [{title:"VACATION",type:"off"}],
+      "2026-12-25": [{title:"VACATION",type:"off"},{title:"Christmas",type:""}],
+      "2026-12-26": [{title:"VACATION",type:"off"}],
+      "2026-12-27": [{title:"LRH Call · Rasheid",type:"call"}],
+      "2026-12-28": [{title:"Conference 0700-1100",type:"clinic"},{title:"Transition Day",type:""},{title:"ICU Days",type:"or"}],
+      "2026-12-29": [{title:"ICU Days",type:"or"}],
+      "2026-12-30": [{title:"ICU Days",type:"or"}],
+      "2026-12-31": [{title:"PAY DAY",type:""},{title:"ICU Days",type:"or"}],
+      "2027-01-01": [{title:"ICU Days",type:"or"},{title:"New Year's Day",type:""}],
+      "2027-01-04": [{title:"Conference 0700-1100",type:"clinic"},{title:"ICU Days",type:"or"},{title:"Daycare 0900-1300",type:""}],
+      "2027-01-05": [{title:"ICU Days",type:"or"}],
+      "2027-01-06": [{title:"ICU Days",type:"or"},{title:"Daycare 0900-1300",type:""}],
+      "2027-01-07": [{title:"ICU Days",type:"or"}],
+      "2027-01-08": [{title:"ICU Days",type:"or"},{title:"Daycare 0900-1300",type:""}],
+      "2027-01-11": [{title:"Conference 0700-1100",type:"clinic"},{title:"ICU Days",type:"or"},{title:"Daycare 0900-1300",type:""}],
+      "2027-01-12": [{title:"ICU Days",type:"or"}],
+      "2027-01-13": [{title:"ICU Days",type:"or"},{title:"Daycare 0900-1300",type:""}],
+      "2027-01-14": [{title:"ICU Days",type:"or"}],
+      "2027-01-15": [{title:"ICU Days",type:"or"},{title:"Daycare 0900-1300",type:""}],
+      "2027-01-18": [{title:"ICU Days",type:"or"},{title:"M L King Day",type:""}],
+      "2027-01-19": [{title:"ICU Days",type:"or"}],
+      "2027-01-20": [{title:"ICU Days",type:"or"},{title:"Daycare 0900-1300",type:""}],
+      "2027-01-21": [{title:"ICU Days",type:"or"}],
+      "2027-01-22": [{title:"ICU Days",type:"or"},{title:"Daycare 0900-1300",type:""}],
+      "2027-01-25": [{title:"Conference 0700-1100",type:"clinic"},{title:"Transition Day",type:""},{title:"ICU Days",type:"or"},{title:"Daycare 0900-1300",type:""}],
+      "2027-01-26": [{title:"ICU Days",type:"or"}],
+      "2027-01-27": [{title:"ICU Days",type:"or"},{title:"Daycare 0900-1300",type:""}],
+      "2027-01-28": [{title:"STS SD",type:""},{title:"ICU Days",type:"or"}],
+      "2027-01-29": [{title:"STS SD",type:""},{title:"ICU Days",type:"or"},{title:"Daycare 0900-1300",type:""}],
+      "2027-01-30": [{title:"STS SD",type:""}],
+      "2027-01-31": [{title:"STS SD",type:""}],
+      "2027-02-01": [{title:"Conference 0700-1100",type:"clinic"},{title:"ABSITE",type:""},{title:"ICU Days",type:"or"},{title:"Daycare 0900-1300",type:""}],
+      "2027-02-02": [{title:"ICU Days",type:"or"}],
+      "2027-02-03": [{title:"ICU Days",type:"or"},{title:"Daycare 0900-1300",type:""}],
+      "2027-02-04": [{title:"ICU Days",type:"or"}],
+      "2027-02-05": [{title:"ICU Days",type:"or"},{title:"Daycare 0900-1300",type:""}],
+      "2027-02-08": [{title:"Conference 0700-1100",type:"clinic"},{title:"ICU Days",type:"or"},{title:"Daycare 0900-1300",type:""}],
+      "2027-02-09": [{title:"ICU Days",type:"or"}],
+      "2027-02-10": [{title:"ICU Days",type:"or"},{title:"Daycare 0900-1300",type:""}],
+      "2027-02-11": [{title:"ICU Days",type:"or"}],
+      "2027-02-12": [{title:"ICU Days",type:"or"},{title:"Daycare 0900-1300",type:""}],
+      "2027-02-15": [{title:"ICU Days",type:"or"},{title:"Presidents' Day",type:""}],
+      "2027-02-16": [{title:"ICU Days",type:"or"}],
+      "2027-02-17": [{title:"ICU Days",type:"or"},{title:"Daycare 0900-1300",type:""}],
+      "2027-02-18": [{title:"ICU Days",type:"or"}],
+      "2027-02-19": [{title:"ICU Days",type:"or"},{title:"Daycare 0900-1300",type:""}],
+      "2027-02-20": [{title:"SESC GA",type:""}],
+      "2027-02-21": [{title:"SESC GA",type:""}],
+      "2027-02-22": [{title:"Conference 0700-1100",type:"clinic"},{title:"SESC GA",type:""},{title:"Transition Day",type:""},{title:"ICU Days",type:"or"},{title:"Daycare 0900-1300",type:""}],
+      "2027-02-23": [{title:"SESC GA",type:""},{title:"ICU Days",type:"or"}],
+      "2027-02-24": [{title:"ICU Days",type:"or"},{title:"Daycare 0900-1300",type:""}],
+      "2027-02-25": [{title:"ICU Days",type:"or"}],
+      "2027-02-26": [{title:"ICU Days",type:"or"},{title:"Daycare 0900-1300",type:""}],
+      "2027-03-01": [{title:"Conference 0700-1100",type:"clinic"},{title:"ICU Days",type:"or"},{title:"Daycare 0900-1300",type:""}],
+      "2027-03-02": [{title:"ICU Days",type:"or"}],
+      "2027-03-03": [{title:"ICU Days",type:"or"},{title:"Daycare 0900-1300",type:""}],
+      "2027-03-04": [{title:"ICU Days",type:"or"}],
+      "2027-03-05": [{title:"ICU Days",type:"or"},{title:"Daycare 0900-1300",type:""}],
+      "2027-03-08": [{title:"Conference 0700-1100",type:"clinic"},{title:"ICU Days",type:"or"},{title:"Daycare 0900-1300",type:""}],
+      "2027-03-09": [{title:"ICU Days",type:"or"}],
+      "2027-03-10": [{title:"ICU Days",type:"or"},{title:"Daycare 0900-1300",type:""}],
+      "2027-03-11": [{title:"ICU Days",type:"or"}],
+      "2027-03-12": [{title:"ICU Days",type:"or"},{title:"Daycare 0900-1300",type:""}],
+      "2027-03-15": [{title:"Conference 0700-1100",type:"clinic"},{title:"ICU Days",type:"or"},{title:"Daycare 0900-1300",type:""}],
+      "2027-03-16": [{title:"ICU Days",type:"or"}],
+      "2027-03-17": [{title:"ICU Days",type:"or"},{title:"Daycare 0900-1300",type:""}],
+      "2027-03-18": [{title:"ICU Days",type:"or"}],
+      "2027-03-19": [{title:"ICU Days",type:"or"},{title:"Daycare 0900-1300",type:""}],
+      "2027-03-21": [{title:"VACATION",type:"off"}],
+      "2027-03-22": [{title:"VACATION",type:"off"}],
+      "2027-03-23": [{title:"VACATION",type:"off"}],
+      "2027-03-24": [{title:"VACATION",type:"off"}],
+      "2027-03-25": [{title:"VACATION",type:"off"}],
+      "2027-03-26": [{title:"VACATION",type:"off"},{title:"Good Friday",type:""}],
+      "2027-03-27": [{title:"Felicia's Birthday",type:""},{title:"VACATION",type:"off"}],
+      "2027-03-28": [{title:"VACATION",type:"off"},{title:"Easter Sunday",type:""}],
+      "2027-03-29": [{title:"Conference 0700-1100",type:"clinic"},{title:"Transition Day",type:""},{title:"Plastics",type:"or"},{title:"Daycare 0900-1300",type:""}],
+      "2027-03-30": [{title:"Plastics",type:"or"}],
+      "2027-03-31": [{title:"Plastics",type:"or"},{title:"Daycare 0900-1300",type:""}],
+      "2027-04-01": [{title:"Plastics",type:"or"}],
+      "2027-04-02": [{title:"Plastics",type:"or"},{title:"Daycare 0900-1300",type:""}],
+      "2027-04-05": [{title:"Conference 0700-1100",type:"clinic"},{title:"Plastics",type:"or"},{title:"Daycare 0900-1300",type:""}],
+      "2027-04-06": [{title:"Plastics",type:"or"},{title:"SAGES LV",type:""}],
+      "2027-04-07": [{title:"Plastics",type:"or"},{title:"SAGES LV",type:""},{title:"Daycare 0900-1300",type:""}],
+      "2027-04-08": [{title:"Plastics",type:"or"},{title:"SAGES LV",type:""}],
+      "2027-04-09": [{title:"Plastics",type:"or"},{title:"SAGES LV",type:""},{title:"Daycare 0900-1300",type:""}],
+      "2027-04-12": [{title:"Conference 0700-1100",type:"clinic"},{title:"Plastics",type:"or"},{title:"Daycare 0900-1300",type:""}],
+      "2027-04-13": [{title:"Plastics",type:"or"}],
+      "2027-04-14": [{title:"Plastics",type:"or"},{title:"Daycare 0900-1300",type:""}],
+      "2027-04-15": [{title:"Plastics",type:"or"}],
+      "2027-04-16": [{title:"Plastics",type:"or"},{title:"Daycare 0900-1300",type:""}],
+      "2027-04-19": [{title:"Conference 0700-1100",type:"clinic"},{title:"Plastics",type:"or"},{title:"Daycare 0900-1300",type:""}],
+      "2027-04-20": [{title:"Plastics",type:"or"}],
+      "2027-04-21": [{title:"Plastics",type:"or"},{title:"Daycare 0900-1300",type:""}],
+      "2027-04-22": [{title:"Plastics",type:"or"}],
+      "2027-04-23": [{title:"Plastics",type:"or"},{title:"Daycare 0900-1300",type:""}],
+      "2027-04-26": [{title:"Conference 0700-1100",type:"clinic"},{title:"Plastics",type:"or"},{title:"Daycare 0900-1300",type:""}],
+      "2027-04-27": [{title:"Plastics",type:"or"}],
+      "2027-04-28": [{title:"Plastics",type:"or"},{title:"Daycare 0900-1300",type:""}],
+      "2027-04-29": [{title:"Plastics",type:"or"}],
+      "2027-04-30": [{title:"Plastics",type:"or"},{title:"Daycare 0900-1300",type:""}],
+      "2027-05-01": [{title:"AATS LA",type:""}],
+      "2027-05-02": [{title:"AATS LA",type:""},{title:"ICU 1900-0700",type:"call"}],
+      "2027-05-03": [{title:"Conference 0700-1100",type:"clinic"},{title:"AATS LA",type:""},{title:"Transition Day",type:""},{title:"ICU 2000-0700",type:"call"},{title:"Daycare 0900-1300",type:""}],
+      "2027-05-04": [{title:"AATS LA",type:""},{title:"ICU 1900-0700",type:"call"}],
+      "2027-05-05": [{title:"ICU 1900-0700",type:"call"},{title:"Daycare 0900-1300",type:""}],
+      "2027-05-06": [{title:"ICU 1900-0700",type:"call"}],
+      "2027-05-07": [{title:"ICU 1900-0700",type:"call"},{title:"Daycare 0900-1300",type:""}],
+      "2027-05-09": [{title:"ICU 1900-0700",type:"call"}],
+      "2027-05-10": [{title:"Conference 0700-1100",type:"clinic"},{title:"ICU 2000-0700",type:"call"},{title:"Daycare 0900-1300",type:""}],
+      "2027-05-11": [{title:"ICU 1900-0700",type:"call"}],
+      "2027-05-12": [{title:"ICU 1900-0700",type:"call"},{title:"Daycare 0900-1300",type:""}],
+      "2027-05-13": [{title:"ICU 1900-0700",type:"call"}],
+      "2027-05-14": [{title:"ICU 1900-0700",type:"call"},{title:"Daycare 0900-1300",type:""}],
+      "2027-05-16": [{title:"ICU 1900-0700",type:"call"}],
+      "2027-05-17": [{title:"Conference 0700-1100",type:"clinic"},{title:"ICU 2000-0700",type:"call"},{title:"Daycare 0900-1300",type:""}],
+      "2027-05-18": [{title:"ICU 1900-0700",type:"call"}],
+      "2027-05-19": [{title:"ICU 1900-0700",type:"call"},{title:"Daycare 0900-1300",type:""}],
+      "2027-05-20": [{title:"ICU 1900-0700",type:"call"}],
+      "2027-05-21": [{title:"ICU 1900-0700",type:"call"},{title:"Daycare 0900-1300",type:""}],
+      "2027-05-23": [{title:"ICU 1900-0700",type:"call"}],
+      "2027-05-24": [{title:"Conference 0700-1100",type:"clinic"},{title:"ICU 2000-0700",type:"call"},{title:"Daycare 0900-1300",type:""}],
+      "2027-05-25": [{title:"ICU 1900-0700",type:"call"}],
+      "2027-05-26": [{title:"ICU 1900-0700",type:"call"},{title:"Daycare 0900-1300",type:""}],
+      "2027-05-27": [{title:"ICU 1900-0700",type:"call"}],
+      "2027-05-28": [{title:"ICU 1900-0700",type:"call"},{title:"Daycare 0900-1300",type:""}],
+      "2027-05-30": [{title:"ICU 1900-0700",type:"call"}],
+      "2027-05-31": [{title:"ICU 2000-0700",type:"call"},{title:"Memorial Day",type:""},{title:"Transition Day",type:""}],
+      "2027-06-01": [{title:"ICU 1900-0700",type:"call"}],
+      "2027-06-02": [{title:"ICU 1900-0700",type:"call"},{title:"Daycare 0900-1300",type:""}],
+      "2027-06-03": [{title:"ICU 1900-0700",type:"call"}],
+      "2027-06-04": [{title:"ICU 1900-0700",type:"call"},{title:"Daycare 0900-1300",type:""}],
+      "2027-06-06": [{title:"ICU 1900-0700",type:"call"}],
+      "2027-06-07": [{title:"Conference 0700-1100",type:"clinic"},{title:"ICU 2000-0700",type:"call"},{title:"Daycare 0900-1300",type:""}],
+      "2027-06-08": [{title:"ICU 1900-0700",type:"call"}],
+      "2027-06-09": [{title:"ICU 1900-0700",type:"call"},{title:"Daycare 0900-1300",type:""}],
+      "2027-06-10": [{title:"ICU 1900-0700",type:"call"}],
+      "2027-06-11": [{title:"ICU 1900-0700",type:"call"},{title:"Daycare 0900-1300",type:""}],
+      "2027-06-13": [{title:"ICU 1900-0700",type:"call"}],
+      "2027-06-14": [{title:"Conference 0700-1100",type:"clinic"},{title:"ICU 2000-0700",type:"call"},{title:"Daycare 0900-1300",type:""}],
+      "2027-06-15": [{title:"ICU 1900-0700",type:"call"}],
+      "2027-06-16": [{title:"ICU 1900-0700",type:"call"},{title:"Daycare 0900-1300",type:""}],
+      "2027-06-17": [{title:"ICU 1900-0700",type:"call"}],
+      "2027-06-18": [{title:"ICU 1900-0700",type:"call"},{title:"Juneteenth Holiday",type:""}],
+      "2027-06-19": [{title:"Juneteenth",type:""}],
+      "2027-06-20": [{title:"ICU 1900-0700",type:"call"}],
+      "2027-06-21": [{title:"Conference 0700-1100",type:"clinic"},{title:"ICU 2000-0700",type:"call"},{title:"Daycare 0900-1300",type:""}],
+      "2027-06-22": [{title:"ICU 1900-0700",type:"call"}],
+      "2027-06-23": [{title:"ICU 1900-0700",type:"call"},{title:"Daycare 0900-1300",type:""}],
+      "2027-06-24": [{title:"ICU 1900-0700",type:"call"}],
+      "2027-06-25": [{title:"ICU 1900-0700",type:"call"},{title:"Daycare 0900-1300",type:""}],
+      "2027-06-27": [{title:"ICU 1900-0700",type:"call"}],
+      "2027-06-28": [{title:"Conference 0700-1100",type:"clinic"},{title:"ICU 2000-0700",type:"call"},{title:"Daycare 0900-1300",type:""}],
+      "2027-06-29": [{title:"ICU 1900-0700",type:"call"}],
+      "2027-06-30": [{title:"Chase's Birthday",type:""},{title:"Start PGY3",type:""},{title:"Day Off",type:"off"},{title:"Daycare 0900-1300",type:""}],
+      "2027-07-01": [{title:"PGY3 @ 0600",type:""},{title:"New Interns",type:""},{title:"Start PGY3",type:""}],
+      "2027-07-04": [{title:"Independence Day",type:""}],
+      "2027-07-05": [{title:"Independence Day Holiday",type:""}],
+      "2027-07-12": [{title:"Conference 0700-1100",type:"clinic"},{title:"Daycare 0900-1300",type:""}],
+      "2027-07-19": [{title:"Conference 0700-1100",type:"clinic"},{title:"Daycare 0900-1300",type:""}],
+      "2027-07-26": [{title:"Conference 0700-1100",type:"clinic"},{title:"Daycare 0900-1300",type:""}],
+      "2027-08-02": [{title:"Conference 0700-1100",type:"clinic"},{title:"Daycare 0900-1300",type:""}],
+      "2027-08-09": [{title:"Conference 0700-1100",type:"clinic"},{title:"Daycare 0900-1300",type:""}],
+      "2027-08-16": [{title:"Conference 0700-1100",type:"clinic"},{title:"Daycare 0900-1300",type:""}],
+      "2027-08-23": [{title:"Conference 0700-1100",type:"clinic"},{title:"Daycare 0900-1300",type:""}],
+      "2027-08-30": [{title:"Conference 0700-1100",type:"clinic"},{title:"Daycare 0900-1300",type:""}],
+      "2027-09-06": [{title:"Labor Day",type:""}],
+      "2027-09-13": [{title:"Conference 0700-1100",type:"clinic"},{title:"Daycare 0900-1300",type:""}],
+      "2027-09-20": [{title:"Conference 0700-1100",type:"clinic"},{title:"Daycare 0900-1300",type:""}],
+      "2027-09-27": [{title:"Conference 0700-1100",type:"clinic"},{title:"Daycare 0900-1300",type:""}],
+      "2027-10-04": [{title:"Conference 0700-1100",type:"clinic"},{title:"Daycare 0900-1300",type:""}],
+      "2027-10-11": [{title:"Columbus Day",type:""}],
+      "2027-10-18": [{title:"Conference 0700-1100",type:"clinic"},{title:"Daycare 0900-1300",type:""}],
+      "2027-10-25": [{title:"Conference 0700-1100",type:"clinic"},{title:"Daycare 0900-1300",type:""}],
+      "2027-11-01": [{title:"Conference 0700-1100",type:"clinic"},{title:"Daycare 0900-1300",type:""}],
+      "2027-11-08": [{title:"Conference 0700-1100",type:"clinic"},{title:"Daycare 0900-1300",type:""}],
+      "2027-11-11": [{title:"Veterans Day",type:""}],
+      "2027-11-15": [{title:"Conference 0700-1100",type:"clinic"},{title:"Daycare 0900-1300",type:""}],
+      "2027-11-22": [{title:"Conference 0700-1100",type:"clinic"},{title:"Daycare 0900-1300",type:""}],
+      "2027-11-25": [{title:"Thanksgiving Day",type:""}],
+      "2027-11-29": [{title:"Conference 0700-1100",type:"clinic"},{title:"Daycare 0900-1300",type:""}],
+      "2027-12-06": [{title:"Conference 0700-1100",type:"clinic"},{title:"Daycare 0900-1300",type:""}],
+      "2027-12-13": [{title:"Conference 0700-1100",type:"clinic"},{title:"Daycare 0900-1300",type:""}],
+      "2027-12-20": [{title:"Conference 0700-1100",type:"clinic"}],
+      "2027-12-24": [{title:"Christmas Holiday",type:""}],
+      "2027-12-25": [{title:"Christmas",type:""}],
+      "2027-12-27": [{title:"Conference 0700-1100",type:"clinic"}],
+      "2027-12-31": [{title:"New Year's Day Holiday",type:""}]
+    };
+    let currentDate = new Date(2026, 9, 12); // Oct 12, 2026
+    let editingDate = null;
+    function checkPin() {
+      if (document.getElementById("pin-input").value === PIN) {
+        sessionStorage.setItem("scheduleAuth", "1");
+        showCalendar();
+      } else {
+        document.getElementById("pin-error").textContent = "Incorrect PIN";
+      }
+    }
+    document.getElementById("pin-input").addEventListener("keypress", e => { if (e.key === "Enter") checkPin(); });
+    function showCalendar() {
+      document.getElementById("pin-screen").style.display = "none";
+      document.getElementById("calendar-screen").style.display = "block";
+      document.getElementById("logout-btn").style.display = "block";
+      renderCalendar();
+    }
+    function logout() { sessionStorage.removeItem("scheduleAuth"); location.reload(); }
+    function changeMonth(d) { currentDate.setMonth(currentDate.getMonth() + d); renderCalendar(); }
+    function renderCalendar() {
+      const y = currentDate.getFullYear(), m = currentDate.getMonth(), today = new Date();
+      document.getElementById("month-label").textContent = currentDate.toLocaleDateString("en-US", {month:"long", year:"numeric"});
+      const first = new Date(y, m, 1).getDay(), days = new Date(y, m+1, 0).getDate();
+      const el = document.getElementById("days"); el.innerHTML = "";
+      for (let i = 0; i < first; i++) el.appendChild(Object.assign(document.createElement("div"), {className:"day empty"}));
+      for (let d = 1; d <= days; d++) {
+        const dateStr = `${y}-${String(m+1).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
+        const day = document.createElement("div"); day.className = "day";
+        if (today.getFullYear()===y && today.getMonth()===m && today.getDate()===d) day.classList.add("today");
+        day.innerHTML = `<div class="day-number">${d}</div><div class="events"></div>`;
+        const evs = schedule[dateStr] || [];
+        const cont = day.querySelector(".events");
+        evs.forEach(ev => {
+          const e = document.createElement("div");
+          e.className = "event" + (ev.type ? " "+ev.type : "");
+          e.textContent = ev.title;
+          cont.appendChild(e);
+        });
+        day.onclick = () => openEdit(dateStr, d);
+        el.appendChild(day);
+      }
+    }
+    function openEdit(dateStr, day) {
+      editingDate = dateStr;
+      document.getElementById("modal-date").textContent = `Edit ${day}`;
+      renderEventList();
+      document.getElementById("edit-modal").classList.add("open");
+    }
+    function renderEventList() {
+      const list = document.getElementById("event-list");
+      const evs = schedule[editingDate] || [];
+      list.innerHTML = evs.length ? "" : "<p style='color:#888'>No events</p>";
+      evs.forEach((ev,i) => {
+        const item = document.createElement("div"); item.className = "event-item";
+        item.innerHTML = `<span>${ev.title}</span><button onclick="removeEvent(${i})" style="padding:2px 6px;background:#fee2e2;color:#b91c1c">×</button>`;
+        list.appendChild(item);
+      });
+    }
+    function addEvent() {
+      const t = document.getElementById("new-title").value.trim();
+      if (!t) return;
+      if (!schedule[editingDate]) schedule[editingDate] = [];
+      schedule[editingDate].push({title:t, type:document.getElementById("new-type").value});
+      document.getElementById("new-title").value = "";
+      renderEventList(); renderCalendar();
+    }
+    function removeEvent(i) {
+      schedule[editingDate].splice(i,1);
+      if (!schedule[editingDate].length) delete schedule[editingDate];
+      renderEventList(); renderCalendar();
+    }
+    function closeModal() { document.getElementById("edit-modal").classList.remove("open"); }
+    function downloadUpdated() {
+      const s = JSON.stringify(schedule, null, 2);
+      const html = document.documentElement.outerHTML.replace(/let schedule = \{[\s\S]*?\};/, `let schedule = ${s};`);
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(new Blob([html], {type:"text/html"}));
+      a.download = "index.html";
+      a.click();
+      alert("Downloaded. Drag the new index.html onto netlify.com/drop to update the live page.");
+    }
+    if (sessionStorage.getItem("scheduleAuth") === "1") showCalendar();
+  </script>
+</body>
+</html>
